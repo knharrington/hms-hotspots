@@ -14,33 +14,24 @@
   library(sp)
   library(sf)
 
-  #library(rasterVis)
-  #library(raster)
-  #library(RColorBrewer)
-
   library(leaflet)
   library(kableExtra)
   library(shiny)
   library(plotly)
   library(htmlwidgets)
   library(shinyWidgets)
-  #library(shinythemes)
-  library(bslib)
-  #library(shinyBS)
   library(shinycustomloader)
   library(leaflet.extras)
   library(leaflet.extras2)
   
-  #library(KernSmooth)
-  #library(ks)
-  
-  #library(geosphere)
-  #library(lunar)
-  #library(suncalc)
-  #library(oce)
 }
 
 # Load data made in the preprocessing file
 load("preprocess.RData")
 
+# Set Google sheet information
+googledrive::drive_auth(cache = ".secrets", email = "knharrington@mote.org")
+googlesheets4::gs4_auth(token = drive_token())
 
+# Define water current data
+water_currents <- "https://geo.gcoos.org/data/hycom/hycom_surface_current.json"
