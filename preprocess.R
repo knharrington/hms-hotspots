@@ -3,45 +3,64 @@
 # load packages
 {
   library(tidyverse)
-  #library(plyr)
   library(data.table)
   library(lubridate)
   
-  #library(spatial)
   library(sp)
   library(sf)
-  #library(spdep)
-  #library(sfdep)
-  #library(fields)
-  
-  #library(rasterVis)
-  #library(raster)
-  library(RColorBrewer)
-  
-  library(leaflet)
-  #library(kableExtra)
-  #library(shiny)
-  library(plotly)
-  #library(htmlwidgets)
-  #library(shinyWidgets)
-  #library(shinythemes)
-  #library(shinycustomloader)
-  #library(leaflet.extras)
-  #library(leaflet.extras2)
-  
-  #library(KernSmooth)
-  #library(ks)
-  
+
   library(geosphere)
   library(lunar)
   library(suncalc)
   library(oce)
+  
+  library(googledrive)
+  library(googlesheets4)
+  library(digest)
 }
+
+# Set global options for handling Google Sheets token
+options(
+  gargle_oauth_email=TRUE,
+  gargle_oauth_cache = ".secrets",
+  gargle_oauth_path = NULL
+)
+
+# Assign Google Sheet ID
+sheet_id <- drive_get("HMS-sheet")$id
 
 {
 # Read data
-Data.In <- fread("HMS_App/data/NOAA-HMS-data.csv")
+Data.In <- fread("data/NOAA-HMS-data.csv")
 noaa_data = Data.In
+
+# Function to generate random alphanumeric string of the same length
+random_string <- function(n) {
+  paste(sample(c(0:9, letters, LETTERS), n, replace = TRUE), collapse = "")
+}
+
+# Create a function to map unique values to random strings
+random_mask <- function(column) {
+  # Get unique values in the column
+  unique_values <- unique(column)
+  
+  # Generate random strings for each unique value, with the same length as the original value
+  masked_values <- sapply(nchar(unique_values), random_string)
+  
+  # Create a mapping table (dictionary)
+  value_map <- setNames(masked_values, unique_values)
+  
+  # Replace the original values with their masked versions
+  return(value_map[column])
+}
+
+# Mask columns with sensitive information
+{
+  noaa_data$VESSEL_NAME <- random_mask(noaa_data$VESSEL_NAME)
+  noaa_data$VESSEL_ID <- noaa_data$VESSEL_NAME
+  noaa_data$TRIP_NUMBER <- random_mask(noaa_data$TRIP_NUMBER)
+  noaa_data$UNIQUE_RETRIEVAL <- paste(noaa_data$VESSEL_ID, noaa_data$TRIPNUMBER, noaa_data$SETNUMBER, sep="_")
+}
 
 # Format date/times & unique events
 {
@@ -57,7 +76,7 @@ noaa_data = Data.In
   noaa_data$DEPART_DATE <- mdy(noaa_data$DEPARTURE_DATE)
   noaa_data$LAND_DATE <- mdy(noaa_data$LANDING_DATE)
   noaa_data$SET_YEAR <- year(noaa_data$BEGIN_SET_DATE_TIME)
-  noaa_data$UNIQUE_RETRIEVAL <- paste(noaa_data$VESSEL_ID, noaa_data$TRIP_NUMBER, noaa_data$HAUL_NUMBER, sep="_")
+  #noaa_data$UNIQUE_RETRIEVAL <- paste(noaa_data$VESSEL_ID, noaa_data$TRIP_NUMBER, noaa_data$HAUL_NUMBER, sep="_")
   noaa_data$SEA_DAYS <- as.numeric(difftime(noaa_data$LAND_DATE, noaa_data$DEPART_DATE, units = "days"))
 }
 
@@ -95,142 +114,26 @@ noaa_data <- noaa_data %>%
   mutate(Days_Report = dense_rank(as.Date(BEGIN_SET_DATE_TIME, format="%m/%d/%Y"))) %>%
   ungroup()
 
-# Top species caught overall
-top <- noaa_data %>%
-  group_by(SPECIES_NAME) %>%
-  summarise(TOTAL = sum(NUM_FISH)) %>%
-  arrange(desc(TOTAL))
-top_species <- names(sort(tapply(noaa_data$NUM_FISH, noaa_data$SPECIES_NAME, sum), decreasing = TRUE))[1:5]
+gridshp <- st_read(dsn="shapefiles", layer = "GOM_GRID_15MIN_smooth")
+gridshp=gridshp[1]
+names(gridshp)[names(gridshp) == "FID_1"] <- "GRID_ID"
 
-# Group by year and species to get total catches per year
-bar <- noaa_data %>%
-  group_by(SET_YEAR, SPECIES_NAME) %>%
-  summarise(Total_Sp_Yr = sum(NUM_FISH), .groups = "drop") %>%
-  arrange(desc(Total_Sp_Yr))
-
-# Modify data to group non-top species as "Other"
-bar_modified <- bar %>%
-  mutate(SPECIES_NAME = if_else(SPECIES_NAME %in% top_species_all_years, as.character(SPECIES_NAME), "OTHER")) %>%
-  group_by(SET_YEAR, SPECIES_NAME) %>%  # Group by year and species (including "Other")
-  summarise(Total_Sp_Yr = sum(Total_Sp_Yr, na.rm = TRUE), .groups = "drop") %>%  # Sum counts for "Other"
-  mutate(SPECIES_NAME = factor(SPECIES_NAME, levels = c("OTHER", top_species_all_years)))
-
-# Define custom colors
-custom_colors <- c("#2c3e50", "#95a5a6", "#18bc9c", "#3498db", "#f39c12", "#e74c3c")
-
-# bar chart plotly
-bar_plotly <- plot_ly(
-  data = bar_modified,
-  x = ~SET_YEAR,
-  y = ~Total_Sp_Yr,
-  color = ~SPECIES_NAME,
-  colors = custom_colors,
-  type = 'bar'
-) %>%
-  layout(
-    xaxis = list(title = "", tickformat = "%Y"),
-    yaxis = list(title = "Total Fish Caught", tickformat = ",d"),
-    barmode = "stack",
-    legend = list(title = list(text = "Species Name"), orientation = "h", x = 0, y = -0.2)
-  )
-
-observer_trips <- noaa_data %>%
-  group_by(SET_YEAR) %>%
-  summarize(TRIPS = n_distinct(TRIP_NUMBER))
-
-sum(observer_trips$TRIPS)
-
-# trips plotly
-trips_plotly <- plot_ly(observer_trips) %>%
-  add_lines(
-    x = ~SET_YEAR, y = ~TRIPS,
-    color = I("#2c3e50")
-  ) %>%
-  layout(
-    xaxis = list(visible = F, showgrid = F, title = ""),
-    yaxis = list(visible = F, showgrid = F, title = list(text="Observed Trips", standoff=20L)),
-    hovermode = "x",
-    margin = list(t = 0, r = 0, l = 0, b = 0),
-    font = list(color = "#2c3e50"),
-    paper_bgcolor = "transparent",
-    plot_bgcolor = "transparent"
-  ) %>%
-  config(displayModeBar = F) %>%
-  htmlwidgets::onRender(
-    "function(el) {
-      el.closest('.bslib-value-box')
-        .addEventListener('bslib.card', function(ev) {
-          Plotly.relayout(el, {'xaxis.visible': ev.detail.fullScreen, 'yaxis.visible': ev.detail.fullScreen});
-        })
-    }"
-  )
-
-# Read shapefiles
-gridshp10 <- st_read(dsn="HMS_App/shapefiles", layer = "GOM_GRID_10MIN_smooth")
-gridshp10=gridshp10[1]
-names(gridshp10)[names(gridshp10) == "FID_1"] <- "GRID_ID"
-invalid_cells <- gridshp10[!st_is_valid(gridshp10), ]
-gridshp10 <- gridshp10 %>% filter(!GRID_ID %in% invalid_cells$GRID_ID)
-
-gridshp15 <- st_read(dsn="HMS_App/shapefiles", layer = "GOM_GRID_15MIN_smooth")
-gridshp15=gridshp15[1]
-names(gridshp15)[names(gridshp15) == "FID_1"] <- "GRID_ID"
-
-gridshp10h <- st_read(dsn="HMS_App/shapefiles", layer = "GOM_HEX_10MIN")
-gridshp10h=gridshp10h[3]
-names(gridshp10h)[names(gridshp10h) == "GRID_ID"] <- "GRID_ID"
-
-boat_icon <- makeIcon(iconUrl = "www/boat2.svg",
+boat_icon <- makeIcon(iconUrl = "www/boat.svg",
                       iconWidth=35, iconHeight=30, 
                       iconAnchorX=15, iconAnchorY=15)
-html_legend <- "<img src='boat2.svg' style='width:35px;height:30px;'> Current Location<br/>"
+html_legend <- "<img src='boat.svg' style='width:35px;height:30px;'> Current Location<br/>"
 }
 
+# create an example for a fixed userbase and hash the passwords
+user_base <- tibble::tibble(
+  user = c("cfemm-admin", "test-user"),
+  password = purrr::map_chr(c("temp", "hotspots"), sodium::password_store),
+  permissions = c("admin", "standard"),
+  name = c("Admin Account", "Test User")
+)
+
 # Save variables for use in the server
-save(bar_plotly, trips_plotly, 
-     gridshp10, gridshp15, gridshp10h, 
-     top_species, noaa_data, 
-     boat_icon, html_legend, file = "HMS_App/preprocess.RData")
+save(sheet_id, user_base, gridshp, noaa_data, 
+     boat_icon, html_legend, file = "preprocess.RData")
 
-# check for invalid geometries in shapefil
-# ggplot() +
-#   geom_sf(data = gridshp10, fill = NA, color = "red") +
-#   geom_sf(data = gridshp10[!st_is_valid(gridshp10),], fill = "blue")
-
-# non-reactive gam
-# gam_data <- noaa_data %>% filter(SPECIES_NAME %in% c("SWORDFISH", "ESCOLAR", "TUNA ALBACORE", 
-#                                          "TUNAS", "TUNA BIGEYE", "TUNA BLACKFIN", "TUNA YELLOWFIN", "DOLPHIN FISH (MAHI MAHI)")) %>%
-#   group_by(UNIQUE_RETRIEVAL, SPECIES_NAME) %>%
-#   mutate(
-#     NUM_FISH = NUM_FISH,
-#     NUM_DAM = sum(NUM_FISH[CONDITION %in% c('DAMAGED')]),
-#     PROP_DAM = NUM_DAM / NUM_FISH,
-#     FISH_PER_KM = NUM_FISH / HAUL_LENGTH_KM,
-#     FISH_PER_10KM = FISH_PER_KM * 10,
-#     SOAK_TIME = as.numeric(difftime(BEGIN_HAUL_DATE_TIME, END_SET_DATE_TIME, units = "hours")),
-#     FISH_PER_SOAK_HR = NUM_FISH / SOAK_TIME,
-#     FISH_PER_8SOAK_HR = FISH_PER_SOAK_HR * 8,
-#     UNIQUE_RET_LAT = round(mean(CENTROID_LAT), 6),
-#     UNIQUE_RET_LON = round(mean(CENTROID_LON), 6),
-#     MID_HAUL_UTC = MID_HAUL_UTC,
-#     MID_HAUL_NUMERIC = as.numeric(MID_HAUL_UTC)
-#   )
-# 
-# # Fit a GAM model
-# gam_model <- gam(FISH_PER_10KM ~ s(MID_HAUL_NUMERIC, bs = "cs"), data = gam_data)  # "cs" is cubic spline
-# 
-# # Predict fitted values
-# df_pred <- gam_data %>%
-#   ungroup() %>%
-#   mutate(y_pred = predict(gam_model, newdata = gam_data, type = "response"))
-# 
-# # Plot raw data and GAM smooth in Plotly
-# plot_ly() %>%
-#   add_markers(data = gam_data, x = ~MID_HAUL_UTC, y = ~FISH_PER_10KM, name = "Observed Data", marker = list(opacity = 0.5)) %>%
-#   add_lines(data = df_pred, x = ~MID_HAUL_UTC, y = ~y_pred, name = "GAM Fit", line = list(width = 2)) %>%
-#   layout(
-#     title = "GAM Fit with Plotly",
-#     xaxis = list(title = "MID_HAUL_UTC", tickformat="%Y-%m", type="date", tickmode="auto", nticks=16),
-#     yaxis = list(title = "FISH_PER_10KM"),
-#     legend = list(orientation = "h", x = 0, y = -0.2)
-#   )
+################################################################################
