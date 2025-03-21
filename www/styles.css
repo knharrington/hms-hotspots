@@ -1,0 +1,132 @@
+/* CSS for the HMS app */
+
+/* Fullscreen Map */
+#map {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+/* Map title */
+#map-title {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Good Catch Button */
+#good-catch {
+  position: absolute;
+  color: white;
+  border: none;
+  cursor: pointer;
+  z-index: 1000;
+  bottom: 20px !important;
+  left: 10px !important;
+}
+
+/* Hover Effects */
+#good-catch button {
+  background-color: #036BA1 !important;
+  color: white !important;
+  font-weight: bold;
+  border: none;
+  transition: 0.3s;
+  width: 80px !important;
+  height: 80px !important;
+}
+
+#good-catch button:hover {
+  background-color: #012b40 !important;
+  transform: scale(1.05);
+}
+
+/* Bad Catch Button */
+#bad-catch {
+  position: absolute;
+  color: white;
+  border: none;
+  cursor: pointer;
+  z-index: 1000;
+  bottom: 20px !important;
+  left: 100px !important;
+}
+
+/* Hover Effects */
+#bad-catch button {
+  background-color: #C55301 !important;
+  color: white !important;
+  font-weight: bold;
+  border: none;
+  transition: 0.3s;
+  width: 80px !important;
+  height: 80px !important;
+}
+
+#bad-catch button:hover {
+  background-color: #4f2100 !important;
+  transform: scale(1.05);
+}
+
+/* Dropdown Button */
+#dropitdown {
+  position: absolute !important;
+  z-index: 1000;
+  top: 10px;
+  left: 50px;
+}
+
+/* Dropdown Menu */
+.sw-dropdown-menu {
+  background-color: white;
+  border: 5px solid white;
+  border-radius: 10px;
+  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
+  padding: 15px;
+}
+
+/* Hover Effects */
+#dropitdown button {
+  background-color: #898989 !important;
+  color: white !important;
+  font-weight: bold;
+  border: none;
+  transition: 0.3s;
+  width: 60px !important;
+  height: 60px !important;
+}
+
+#dropitdown button:hover {
+  background-color: #595959 !important;
+  transform: scale(1.05);
+}
+
+/* Ensure the button expands */
+#update {
+  display: block !important; /* Forces block-level layout */
+  width: 100% !important; /* Expands to the full dropdown width */
+  text-align: center; /* Ensures text/icon are centered */
+  margin-top: 10px; /* Adds some spacing */
+}
+
+/* Style the button itself */
+#update button {
+  width: 100% !important; /* Make button take up full width */
+  max-width: 290px; /* Prevents it from being too wide */
+  height: 45px !important; /* Adjust height */
+  font-size: 16px !important; /* Increase text size */
+  background-color: #898989 !important; /* Keep your button styling */
+  color: white !important;
+  border-radius: 8px; /* Soft rounded corners */
+}
