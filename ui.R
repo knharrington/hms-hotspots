@@ -30,6 +30,9 @@ fluidPage(
   shinyauthr::loginUI("login"),
   
   div(id="main_ui",
+  
+    div(id="logout-container", shinyauthr::logoutUI(id = "logout")),
+  
   # Map
   leafletOutput("map", height = "100vh"),
   
@@ -37,8 +40,13 @@ fluidPage(
   #div(id = "map-title", "Bluefin Tuna Bycatch Reduction"),
   
   # Floating Buttons
-  div(id = "good-catch", actionBttn("good_catch", style = "material-circle", icon = icon("check"))),
-  div(id = "bad-catch", actionBttn("bad_catch", style = "material-circle", icon = icon("xmark"))),
+  div(id = "catch-panel",
+    tags$div(class = "catch-panel-title", "Record Fishing Observation"),
+    div(id = "button-row",
+        div(id = "good-catch", actionBttn("good_catch", style = "material-circle", icon = icon("check"))),
+        div(id = "bad-catch", actionBttn("bad_catch", style = "material-circle", icon = icon("xmark")))
+    )
+  ),
   
   # Dropdown menu inputs
   div(id = "dropitdown",
@@ -46,10 +54,9 @@ fluidPage(
              
              checkboxGroupInput("layer", "Map Layers", 
                                 choices = c("Bluefin Tuna Predictions", "Bluefin Tuna Interactions", "Good Catch", "Currents", "Graticule"),
-                                selected = c("Bluefin Tuna Interactions", "Good Catch", "Currents", "Graticule")),
+                                selected = c("Currents", "Graticule")),
              
-             sliderTextInput("days", "Days Since Reporting", 
-                             choices=seq(from=1, to=14, by=1), selected=c(14), grid=TRUE),
+             sliderInput("days", "Days Since Reporting", min=1, max=14, step=1, value=14),
              
              div(id="update", actionButton("update", "Update Map", icon=icon("refresh"))),
              
