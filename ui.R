@@ -31,10 +31,11 @@ fluidPage(
   
   div(id="main_ui",
   
-    div(id="logout-container", shinyauthr::logoutUI(id = "logout")),
-  
   # Map
   leafletOutput("map", height = "100vh"),
+  
+  # Log out
+  div(id="logout-container", shinyauthr::logoutUI(id = "logout")),
   
   # Title
   #div(id = "map-title", "Bluefin Tuna Bycatch Reduction"),
