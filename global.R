@@ -24,6 +24,9 @@
   library(leaflet.extras)
   library(leaflet.extras2)
   
+  library(googledrive)
+  library(googlesheets4)
+  library(digest)
 }
 
 # Load data made in the preprocessing file
