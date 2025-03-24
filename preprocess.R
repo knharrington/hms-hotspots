@@ -118,6 +118,9 @@ gridshp <- st_read(dsn="shapefiles", layer = "GOM_GRID_15MIN_smooth")
 gridshp=gridshp[1]
 names(gridshp)[names(gridshp) == "FID_1"] <- "GRID_ID"
 
+# Determine bounding box for shapefile limits
+bbox <- st_bbox(gridshp)
+
 boat_icon <- makeIcon(iconUrl = "www/boat.svg",
                       iconWidth=35, iconHeight=30, 
                       iconAnchorX=15, iconAnchorY=15)
@@ -133,7 +136,7 @@ user_base <- tibble::tibble(
 )
 
 # Save variables for use in the server
-save(sheet_id, user_base, gridshp, noaa_data, 
+save(sheet_id, user_base, gridshp, bbox, noaa_data, 
      boat_icon, html_legend, file = "preprocess.RData")
 
 ################################################################################
