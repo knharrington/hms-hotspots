@@ -101,13 +101,29 @@ function(input, output, session) {
         if (input$geolocation == TRUE) {
           lon <- as.numeric(input$long)
           lat <- as.numeric(input$lat)
+          
+          if (is.na(lon) || lon > bbox$xmax || lon < bbox$xmin || is.null(lon)) {
+            show_alert("Error writing data",
+                       text = paste0("Valid longitudes are between ", round(bbox$xmin, 2), "W and ", round(bbox$xmax, 2), "W."),
+                       type="error", btn_colors = "#dd4b39")
+            shinyjs::enable("submit")
+            return(NULL)  
+          }
+          if (is.na(lat) || lat < bbox$ymin || lat > bbox$ymax || is.null(lat)) {
+            show_alert("Error writing data",
+                       text = paste0("Valid latitudes are between ", round(bbox$ymin, 2), "N and ", round(bbox$ymax, 2), "N."),
+                       type="error", btn_colors = "#dd4b39")
+            shinyjs::enable("submit")
+            return(NULL) 
+          }
+          
         } else {  
-          #lon <- -88
-          #lat <- 29
+          lon <- -88.5
+          lat <- 29.1
           show_alert("Error writing data",
                      text = "Please check your browser settings to allow location access.",
                      type="error", btn_colors = "#dd4b39")
-          return(NULL)
+          #return(NULL)
         }
       
       # Compile responses into a data frame
