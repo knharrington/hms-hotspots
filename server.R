@@ -46,8 +46,8 @@ function(input, output, session) {
           tags$h4("How to Use the App:"),
           tags$ul(
             tags$li("Update map layers in the settings button to view data on the map."),
-            tags$li("Share your observations of bluefin tuna using the red x-mark button."),
-            tags$li("Share your observations of good catch using the blue check-mark button.")
+            tags$li("Share your observations of good catch using the blue check-mark button."),
+            tags$li("Share your observations of bluefin tuna using the red x-mark button.")
           ),
         ),
         footer = tags$p(style="text-align:center;", tags$em("Data collected through this app is confidential and only accessible to approved members.")),
@@ -102,8 +102,8 @@ function(input, output, session) {
           lon <- as.numeric(input$long)
           lat <- as.numeric(input$lat)
         } else {  
-          lon <- -88
-          lat <- 29
+          #lon <- -88
+          #lat <- 29
           show_alert("Error writing data",
                      text = "Please check your browser settings to allow location access.",
                      type="error", btn_colors = "#dd4b39")
@@ -145,11 +145,31 @@ function(input, output, session) {
   }, ignoreNULL=TRUE) # End input submit
   
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+  user_data <- reactive({data_store$data})
+  user_data_sf <- reactive({st_as_sf(user_data(), coords = c("longitude", "latitude"), crs = st_crs(gridshp))})
+  grid_join_u <- reactive({setDT(st_join(user_data_sf(), gridshp, join = st_intersects))})
+  
+  filtered_grid_u <- reactive({
+    threshold_time <- Sys.time() - as.difftime(input$days, units = "days")
+    grid_join_u() %>%
+      filter(!is.na(GRID_ID),
+             timestamp >= threshold_time) %>%
+      group_by(GRID_ID) %>%
+      dplyr::reframe(
+        NUM_BLUEFIN = sum(observation == "bluefin tuna", na.rm = TRUE),
+        NUM_OTHER = sum(observation == "good catch", na.rm = TRUE),
+      ) %>%
+      filter(GRID_ID != "NA") %>%
+      select(GRID_ID, NUM_BLUEFIN, NUM_OTHER)
+  })
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #  
 # filter data according to inputs
 filtered <- reactive({
   noaa_data %>% filter(
-    Days_Report <= input$days[1]) %>%
-    group_by(UNIQUE_RETRIEVAL, SPECIES_NAME) %>%
+    Days_Report <= input$days &
+      !is.na(CENTROID_LAT) & !is.na(CENTROID_LON)) %>%
+    group_by(UNIQUE_RETRIEVAL, SPECIES_NAME, VESSEL_ID) %>%
     mutate(
       UNIQUE_RET_LAT = round(mean(CENTROID_LAT), 6),
       UNIQUE_RET_LON = round(mean(CENTROID_LON), 6)
@@ -171,24 +191,51 @@ filtered_grid <- reactive({
       NUM_OTHER = sum(NUM_FISH[SPECIES_NAME != "TUNA BLUEFIN"], na.rm = TRUE),
       unique_vessel_ids = n_distinct(VESSEL_ID)  # Count unique VESSEL_IDs in each grid
     ) %>%
-    mutate(
-      RATIO = ifelse(NUM_OTHER > 0, NUM_BLUEFIN / NUM_OTHER, NUM_BLUEFIN), 
-      CLASSIFICATION = case_when(
-        NUM_BLUEFIN >= 1 ~ "Bad",
-        TRUE ~ "Good"
-      )
-    ) %>%
     filter(
       unique_vessel_ids >= 3,  # at least 3 unique VESSEL_IDs contributing
-      GRID_ID != "NA")
+      GRID_ID != "NA") %>%
+    select(GRID_ID, NUM_BLUEFIN, NUM_OTHER)
 })
 
+combined <- reactive({
+  bind_rows(filtered_grid(), filtered_grid_u()) %>%
+  group_by(GRID_ID) %>%
+  summarize(
+    NUM_BLUEFIN = sum(NUM_BLUEFIN, na.rm = TRUE),
+    NUM_OTHER = sum(NUM_OTHER, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    CLASSIFICATION = case_when(
+      NUM_BLUEFIN >= 1 ~ "Bad",
+      NUM_BLUEFIN == 0 ~ "Good"
+    )
+  )
+})
+  
 # Merge the results back with the grid shapefile
-gridvalues <- reactive({st_as_sf(merge(x = gridshp, y = filtered_grid(), by = "GRID_ID", all.x = FALSE))})
+gridvalues <- reactive({st_as_sf(merge(x = gridshp, y = combined(), by = "GRID_ID", all.x = FALSE))})
+#goodgrid <- reactive({gridvalues() %>% filter(CLASSIFICATION == "Good")})
+badgrid <- reactive({gridvalues() %>% filter(CLASSIFICATION == "Bad")})
 
+suppressWarnings(
+  centroids <- reactive({
+    gridvalues()%>%
+      st_centroid()
+  })
+)
+
+set.seed(42)
+good_centroids <- reactive({
+  gridvalues() %>%
+    st_centroid() %>%
+    st_jitter(amount = 0.1) %>%        # jitter the points
+    slice_sample(prop = 0.5)            # take a 50% random sample
+})
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 # Options: "Bluefin Tuna Predictions", "Bluefin Tuna Interactions", "Good Catch", "Currents", "Graticule
 # Map with proxy
+
 output$map <- renderLeaflet({
   req(credentials()$info)
   leaflet() %>%
@@ -198,28 +245,6 @@ output$map <- renderLeaflet({
                 options = scaleBarOptions(maxWidth = 100, metric = TRUE, imperial = TRUE, updateWhenIdle = FALSE)) %>%
     addSimpleGraticule(interval = 1, 
                        group = "Graticule") %>%
-    addMarkers(lng=-88, lat=27.5, icon=boat_icon) %>%
-    addControl(html=html_legend, position="topright") %>%
-    # addPolygons( 
-    #   data = gridshp15,
-    #   color="black",
-    #   fillColor = "transparent",
-    #   weight=0.33,
-    #   fillOpacity=0.5) %>%
-    addPolygons(data = gridvalues()[gridvalues()$CLASSIFICATION == "Bad",],
-                fillColor = "#C55301",
-                weight = 3,
-                opacity = 1,
-                fillOpacity = 0.25,
-                color = "#C55301",
-                group = "Bluefin Tuna Interactions") %>%
-    addPolygons(data = gridvalues()[gridvalues()$CLASSIFICATION == "Good",],
-                fillColor = "#036BA1",
-                weight = 3,
-                opacity = 1,
-                fillOpacity = 0.25,
-                color = "#036BA1",
-                group = "Good Catch") %>%
     addVelocity(content=water_currents,
                 group = "Currents",
                 options= velocityOptions(
@@ -235,27 +260,36 @@ observeEvent(input$update, {
   proxy <- leafletProxy("map") %>%
     clearShapes() %>%
     clearControls() %>%
-    clearHeatmap() %>%
-    # addPolygons( 
-    #   data = gridshp15,
-    #   color="black",
-    #   fillColor = "transparent",
-    #   weight=0.33,
-    #   fillOpacity=0.5) %>%
-    addMarkers(lng=-88, lat=27.5, icon=boat_icon) %>%
-    addControl(html=html_legend, position="topright")
-  
+    clearHeatmap()
+    
+  if (input$geolocation == TRUE) {
+    proxy %>%
+      addMarkers(lng=input$long, lat=input$lat, icon=boat_icon) %>%
+      addControl(html=html_legend, position="topright")
+  }
+    
   # Predictions
   if ("Bluefin Tuna Predictions" %in% input$layer) {
     show_alert("Layer Unavailable", text="Predictive modeling
-               for bluefin tuna interactions is currently unavailable.", type="error", btn_colors="#C55301")
+               for bluefin tuna interactions is currently unavailable.
+               A point density heatmap is being displayed as a temporary visualization.", 
+               type="warning", btn_colors="#C55301")
+    proxy %>%
+    clearGroup("Bluefin Tuna Predictions") %>%
+    addHeatmap(
+      data = centroids(),
+      intensity = ~NUM_BLUEFIN,
+      blur = 20,
+      radius = 35,
+      group = "Bluefin Tuna Predictions"
+    )
   } 
   
   # Interactions
   if ("Bluefin Tuna Interactions" %in% input$layer) {
     proxy %>%
       clearGroup("Bluefin Tuna Interactions") %>%
-      addPolygons(data = gridvalues()[gridvalues()$CLASSIFICATION == "Bad",],
+      addPolygons(data = badgrid(),
                   fillColor = "#C55301",
                   weight = 3,
                   opacity = 1,
@@ -271,13 +305,15 @@ observeEvent(input$update, {
   if ("Good Catch" %in% input$layer) {
     proxy %>%
       clearGroup("Good Catch") %>%
-      addPolygons(data = gridvalues()[gridvalues()$CLASSIFICATION == "Good",],
-                  fillColor = "#036BA1",
-                  weight = 3,
-                  opacity = 1,
-                  fillOpacity = 0.25,
-                  color = "#036BA1",
-                  group = "Good Catch")
+      addAwesomeMarkers(
+        data = good_centroids(),
+        icon = awesomeIcons(
+          icon = "check",
+          iconColor = "#FFFFFF",
+          markerColor = "darkblue",  
+          library = "fa"),
+        group = "Good Catch")
+  
   } else {
     proxy %>%
       clearGroup("Good Catch")
