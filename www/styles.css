@@ -9,42 +9,51 @@
   right: 0;
 }
 
-/* Map title */
-#map-title {
+/* Translucent Panel Container */
+#catch-panel {
   position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background-color: rgba(255, 255, 255, 0.8);
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 24px;
+  bottom: 20px;
+  left: 10px;
+  background-color: rgba(255, 255, 255, 0.6);
+  padding: 15px;
+  border-radius: 12px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;  
+  align-items: center;
+  gap: 10px;
+}
+
+/* Title above the buttons */
+.catch-panel-title {
+  font-size: 16px;
   font-weight: bold;
   color: #333;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+/* Row to hold buttons side-by-side */
+#button-row {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+/* Individual button containers */
+#good-catch, #bad-catch {
+  position: relative;
+  z-index: 1000;
 }
 
 /* Good Catch Button */
-#good-catch {
-  position: absolute;
-  color: white;
-  border: none;
-  cursor: pointer;
-  z-index: 1000;
-  bottom: 20px !important;
-  left: 10px !important;
-}
-
-/* Hover Effects */
 #good-catch button {
   background-color: #036BA1 !important;
   color: white !important;
   font-weight: bold;
-  border: none;
   transition: 0.3s;
   width: 80px !important;
   height: 80px !important;
+  border: none;
 }
 
 #good-catch button:hover {
@@ -53,25 +62,14 @@
 }
 
 /* Bad Catch Button */
-#bad-catch {
-  position: absolute;
-  color: white;
-  border: none;
-  cursor: pointer;
-  z-index: 1000;
-  bottom: 20px !important;
-  left: 100px !important;
-}
-
-/* Hover Effects */
 #bad-catch button {
   background-color: #C55301 !important;
   color: white !important;
   font-weight: bold;
-  border: none;
   transition: 0.3s;
   width: 80px !important;
   height: 80px !important;
+  border: none;
 }
 
 #bad-catch button:hover {
@@ -114,19 +112,23 @@
 
 /* Ensure the button expands */
 #update {
-  display: block !important; /* Forces block-level layout */
-  width: 100% !important; /* Expands to the full dropdown width */
-  text-align: center; /* Ensures text/icon are centered */
-  margin-top: 10px; /* Adds some spacing */
+  display: block !important; 
+  width: 100% !important; 
+  text-align: center; 
+  margin-top: 10px; 
 }
 
 /* Style the button itself */
 #update button {
-  width: 100% !important; /* Make button take up full width */
-  max-width: 290px; /* Prevents it from being too wide */
-  height: 45px !important; /* Adjust height */
-  font-size: 16px !important; /* Increase text size */
-  background-color: #898989 !important; /* Keep your button styling */
+  width: 100% !important; 
+  max-width: 290px; 
+  height: 45px !important; 
+  font-size: 16px !important; 
+  background-color: #4F8CCC !important; 
   color: white !important;
-  border-radius: 8px; /* Soft rounded corners */
+  border-radius: 8px; 
+}
+
+#update button:hover {
+  background-color: #4F8CCC !important;
 }
