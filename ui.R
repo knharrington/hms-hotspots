@@ -5,7 +5,10 @@
 
 fluidPage(
   tags$head(
+    # use custom CSS
     tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
+    
+    # Ask for geolocation permissions on start
     tags$script(HTML('
       $(document).ready(function () {
         navigator.geolocation.getCurrentPosition(onSuccess, onError);
@@ -27,6 +30,9 @@ fluidPage(
     '))
   ),
   
+  div(id = "main_title", style = "text-align: center;", tags$h2("Bluefin Tuna Bycatch Reduction Mapping Application")),
+  
+  # log in module
   shinyauthr::loginUI("login"),
   
   div(id="main_ui",
@@ -36,9 +42,6 @@ fluidPage(
   
   # Log out
   div(id="logout-container", shinyauthr::logoutUI(id = "logout")),
-  
-  # Title
-  #div(id = "map-title", "Bluefin Tuna Bycatch Reduction"),
   
   # Floating Buttons
   div(id = "catch-panel",
