@@ -1,9 +1,5 @@
 /* CSS for the HMS app */
 
-/*#main_ui {
-  position: relative;
-} */
-
 /* Fullscreen Map */
 #map {
   position: absolute;
@@ -106,7 +102,6 @@
   padding: 15px;
 }
 
-/* Hover Effects */
 #dropitdown button {
   background-color: #898989 !important;
   color: white !important;
@@ -122,7 +117,7 @@
   transform: scale(1.05);
 }
 
-/* Ensure the button expands */
+/* Styling the Update button */
 #update {
   display: block !important; 
   width: 100% !important; 
@@ -130,7 +125,6 @@
   margin-top: 10px; 
 }
 
-/* Style the button itself */
 #update button {
   width: 100% !important; 
   max-width: 290px; 
