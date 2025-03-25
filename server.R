@@ -10,6 +10,9 @@ function(input, output, session) {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
   # Handle user authentication by only showing the main user interface when credentials are satisfied
   shinyjs::hide(id="main_ui")
+  shinyjs::hide(id="logout-container")
+  shinyjs::hide(id="catch-panel")
+  shinyjs::hide(id="dropitdown")
   
   credentials <- shinyauthr::loginServer(
     id = "login",
@@ -30,8 +33,16 @@ function(input, output, session) {
     if (credentials()$user_auth) {
       session$userData$user_id <- credentials()$info$user
       shinyjs::show(id = "main_ui")  # Show UI when logged in
+      shinyjs::show(id="logout-container")
+      shinyjs::show(id="catch-panel")
+      shinyjs::show(id="dropitdown")
+      shinyjs::hide(id = "main_title")  
     } else {
       shinyjs::hide(id = "main_ui")  # Hide UI on logout
+      shinyjs::hide(id="logout-container")
+      shinyjs::hide(id="catch-panel")
+      shinyjs::hide(id="dropitdown")
+      shinyjs::show(id = "main_title")  
     }
   })
   
@@ -98,6 +109,7 @@ function(input, output, session) {
       
       user_id <- session$userData$user_id
       
+        # Handle errors for geolocation services
         if (input$geolocation == TRUE) {
           lon <- as.numeric(input$long)
           lat <- as.numeric(input$lat)
@@ -118,12 +130,12 @@ function(input, output, session) {
           }
           
         } else {  
-          lon <- -88.5
-          lat <- 29.1
+          #lon <- -100
+          #lat <- 29.1
           show_alert("Error writing data",
                      text = "Please check your browser settings to allow location access.",
                      type="error", btn_colors = "#dd4b39")
-          #return(NULL)
+          return(NULL)
         }
       
       # Compile responses into a data frame
@@ -161,6 +173,7 @@ function(input, output, session) {
   }, ignoreNULL=TRUE) # End input submit
   
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+# Filter and format user data for plotting
   user_data <- reactive({data_store$data})
   user_data_sf <- reactive({st_as_sf(user_data(), coords = c("longitude", "latitude"), crs = st_crs(gridshp))})
   grid_join_u <- reactive({setDT(st_join(user_data_sf(), gridshp, join = st_intersects))})
@@ -180,7 +193,7 @@ function(input, output, session) {
   })
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #  
-# filter data according to inputs
+# filter NOAA data according to inputs
 filtered <- reactive({
   noaa_data %>% filter(
     Days_Report <= input$days &
@@ -213,6 +226,8 @@ filtered_grid <- reactive({
     select(GRID_ID, NUM_BLUEFIN, NUM_OTHER)
 })
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+# Merge user data and NOAA data together
 combined <- reactive({
   bind_rows(filtered_grid(), filtered_grid_u()) %>%
   group_by(GRID_ID) %>%
@@ -234,24 +249,68 @@ gridvalues <- reactive({st_as_sf(merge(x = gridshp, y = combined(), by = "GRID_I
 #goodgrid <- reactive({gridvalues() %>% filter(CLASSIFICATION == "Good")})
 badgrid <- reactive({gridvalues() %>% filter(CLASSIFICATION == "Bad")})
 
-suppressWarnings(
-  centroids <- reactive({
-    gridvalues()%>%
-      st_centroid()
-  })
-)
+# Merge NOAA data with grid separately for plotting points
+grid_NOAA <- reactive({st_as_sf(merge(x=gridshp, y=filtered_grid(), by="GRID_ID", all.x=FALSE))})
 
+# Jitter centroids of NOAA grid cells for simulated point data
 set.seed(42)
 good_centroids <- reactive({
-  gridvalues() %>%
+  grid_NOAA() %>%
+    filter(NUM_BLUEFIN == 0) %>%
     st_centroid() %>%
-    st_jitter(amount = 0.1) %>%        # jitter the points
-    slice_sample(prop = 0.5)            # take a 50% random sample
+    st_jitter(amount = 0.1) %>%
+    slice_sample(prop = 0.5)
 })
+
+# User point data to be merged with NOAA grid centroids
+good_user_points <- reactive({
+  threshold_time <- Sys.time() - as.difftime(input$days, units = "days")
+  user_data_sf() %>%
+    filter(timestamp >= threshold_time,
+           observation == "good catch")
+})
+
+# All point data for good catches
+good_merged_points <- reactive({
+  good_keep_centroids <- st_geometry(good_centroids())
+  good_keep_points <- st_geometry(good_user_points())
+  good_all_points <- c(good_keep_centroids, good_keep_points)
+  
+  st_sf(geometry = good_all_points)
+})
+
+# Jitter centroids of NOAA grid cells for simulated point data
+set.seed(4)
+bad_centroids <- reactive({
+  grid_NOAA() %>%
+    filter(NUM_BLUEFIN > 0) %>%
+    st_centroid() %>%
+    st_jitter(amount = 0.1)
+})
+
+# User point data to be merged with NOAA grid centroids
+bad_user_points <- reactive({
+  threshold_time <- Sys.time() - as.difftime(input$days, units = "days")
+  user_data_sf() %>%
+    filter(timestamp >= threshold_time,
+           observation == "bluefin tuna") %>%
+    mutate(NUM_BLUEFIN = 1)
+})
+
+# All point data for good catches
+bad_merged_points <- reactive({
+  bad_keep_centroids <- bad_centroids() %>%
+    st_as_sf() %>%
+    select(NUM_BLUEFIN, geometry)
+  bad_keep_points <- bad_user_points() %>%
+    st_as_sf() %>%
+    select(NUM_BLUEFIN, geometry)
+  bind_rows(bad_keep_centroids, bad_keep_points)
+})
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 # Options: "Bluefin Tuna Predictions", "Bluefin Tuna Interactions", "Good Catch", "Currents", "Graticule
 # Map with proxy
-
 output$map <- renderLeaflet({
   req(credentials()$info)
   leaflet() %>%
@@ -271,13 +330,14 @@ output$map <- renderLeaflet({
                 ))
 })
 
-# listen for clicking update button
-observeEvent(input$update, {
+# Listen for clicking update map button
+observeEvent(input$update,{
   proxy <- leafletProxy("map") %>%
     clearShapes() %>%
     clearControls() %>%
     clearHeatmap()
-    
+  
+  # Location marker  
   if (input$geolocation == TRUE) {
     proxy %>%
       addMarkers(lng=input$long, lat=input$lat, icon=boat_icon) %>%
@@ -293,7 +353,7 @@ observeEvent(input$update, {
     proxy %>%
     clearGroup("Bluefin Tuna Predictions") %>%
     addHeatmap(
-      data = centroids(),
+      data = bad_merged_points(),
       intensity = ~NUM_BLUEFIN,
       blur = 20,
       radius = 35,
@@ -322,7 +382,7 @@ observeEvent(input$update, {
     proxy %>%
       clearGroup("Good Catch") %>%
       addAwesomeMarkers(
-        data = good_centroids(),
+        data = good_merged_points(),
         icon = awesomeIcons(
           icon = "check",
           iconColor = "#FFFFFF",
