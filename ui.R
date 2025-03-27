@@ -30,7 +30,7 @@ fluidPage(
     '))
   ),
   
-  div(id = "main_title", style = "text-align: center;", tags$h2("Bluefin Tuna Bycatch Reduction Mapping Application")),
+  div(id = "main_title", style = "text-align: center;", tags$h2("Pelagic Longline Fishery Hotspot Mapping Application")),
   
   # log in module
   shinyauthr::loginUI("login"),

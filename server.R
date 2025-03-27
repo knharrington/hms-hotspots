@@ -51,7 +51,7 @@ function(input, output, session) {
     req(credentials()$info)
     showModal(
       ui = modalDialog(
-        title = "Welcome to the Bluefin Tuna Bycatch Reduction Mapping Application",
+        title = "Welcome to the Pelagic Longline Fishery Hotspot Mapping Application",
         tags$div(
           tags$p("This app allows you to filter data on a map, record new observations."),
           tags$h4("How to Use the App:"),
